@@ -1,0 +1,1139 @@
+<!doctype html>
+<html lang="id">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>WhatsApp Web - {{ .AppVersion }}</title>
+
+    <!-- CSS Libraries -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ .AppBasePath }}/assets/whatsapp-web.css">
+    <style>
+        /* Basic fallback styles */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f0f2f5; }
+        .status-bar { position: fixed; top: 0; left: 0; right: 0; height: 32px; background: #075e54; color: white; display: flex; align-items: center; padding: 0 20px; z-index: 1000; }
+        .status-indicator { width: 8px; height: 8px; border-radius: 50%; background: white; margin-right: 8px; animation: pulse 2s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        .status-text { font-size: 14px; font-weight: 500; }
+        .whatsapp-container { display: flex; height: 100vh; margin-top: 32px; background: #f0f2f5; }
+        .login-screen { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: #f0f2f5; display: flex; align-items: center; justify-content: center; z-index: 2000; }
+        .login-container { background: white; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); padding: 40px; text-align: center; max-width: 400px; width: 90%; }
+        .login-header i { font-size: 60px; color: #25d366; margin-bottom: 20px; }
+        .login-header h2 { font-size: 28px; font-weight: 300; color: #111b21; margin-bottom: 10px; }
+        .login-header p { font-size: 14px; color: #667781; margin-bottom: 30px; line-height: 1.5; }
+        .qr-container { margin-bottom: 20px; }
+        .qr-code { width: 256px; height: 256px; border: 1px solid #e9edef; border-radius: 8px; }
+        .qr-loading { width: 256px; height: 256px; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1px solid #e9edef; border-radius: 8px; margin: 0 auto; }
+        .qr-instructions { text-align: left; }
+        .qr-instructions ol { font-size: 14px; color: #3b4a54; line-height: 1.6; padding-left: 20px; }
+        .qr-instructions li { margin-bottom: 8px; }
+        .spinner { border: 4px solid #f3f3f3; border-top: 4px solid #25d366; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 20px auto; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .phone-input { width: 100%; padding: 12px 16px; border: 1px solid #e9edef; border-radius: 8px; font-size: 14px; margin-bottom: 16px; }
+        .login-btn { background: #25d366; color: white; border: none; padding: 12px 20px; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; width: 100%; margin-bottom: 16px; }
+        .login-btn:hover { background: #128c7e; }
+        .login-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+        .pairing-code { background: #f0f2f5; padding: 16px; border-radius: 8px; margin-top: 16px; }
+        .code-display { font-family: monospace; font-size: 24px; font-weight: bold; color: #111b21; letter-spacing: 4px; margin: 8px 0; }
+        .toggle-login-btn { background: none; border: 1px solid #e9edef; color: #667781; padding: 10px 16px; border-radius: 8px; font-size: 14px; cursor: pointer; width: 100%; }
+        .toggle-login-btn:hover { background: #f0f2f5; border-color: #25d366; color: #25d366; }
+
+        /* QR Timer Styles */
+        .qr-wrapper { position: relative; display: inline-block; }
+        .qr-timer {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .qr-expired {
+            position: relative;
+            width: 256px;
+            height: 256px;
+            border: 1px solid #e9edef;
+            border-radius: 8px;
+            background: #f8f9fa;
+        }
+        .expired-overlay {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: #667781;
+        }
+        .expired-overlay i { font-size: 48px; margin-bottom: 16px; color: #dc3545; }
+        .expired-overlay p { margin: 4px 0; font-size: 14px; }
+    </style>
+
+    <!-- JavaScript Libraries -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://unpkg.com/axios@1.1.2/dist/axios.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.5/dist/purify.min.js"></script>
+</head>
+<body>
+<div id="app">
+    <!-- Connection Status Bar -->
+    <div class="status-bar" :class="{ 'connected': isConnected, 'disconnected': !isConnected }">
+        <div class="status-indicator"></div>
+        <span class="status-text">[[ connectionStatus ]]</span>
+    </div>
+
+    <!-- Main Container -->
+    <div class="whatsapp-container" v-show="!showLoginScreen">
+        <!-- Left Sidebar - Chat List -->
+        <div class="sidebar-left">
+            <!-- User Profile Section -->
+            <div class="user-profile">
+                <div class="user-avatar" @click="showProfileModal = true">
+                    <img :src="userProfile.avatar || '/assets/default-avatar.png'" alt="Profile">
+                    <div class="online-indicator" v-if="isOnline"></div>
+                </div>
+                <div class="user-info">
+                    <div class="user-name">[[ userProfile.name || 'Loading...' ]]</div>
+                    <div class="user-status">[[ userProfile.status || 'Connecting...' ]]</div>
+                </div>
+                <div class="menu-buttons">
+                    <button class="icon-btn" @click="newChatModal = true" title="New Chat">
+                        <i class="fas fa-comment-medical"></i>
+                    </button>
+                    <button class="icon-btn" @click="showSettingsModal = true" title="Settings">
+                        <i class="fas fa-ellipsis-v"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Search Bar -->
+            <div class="search-container">
+                <div class="search-box">
+                    <i class="fas fa-search"></i>
+                    <input type="text"
+                           v-model="searchQuery"
+                           placeholder="Cari chat atau pesan..."
+                           @input="searchChats">
+                </div>
+            </div>
+
+            <!-- Chat List -->
+            <div class="chat-list" ref="chatList">
+                <div v-for="chat in filteredChats"
+                     :key="chat.jid"
+                     class="chat-item"
+                     :class="{ 'active': selectedChat && selectedChat.jid === chat.jid }"
+                     @click="selectChat(chat)">
+                    <div class="chat-avatar">
+                        <img :src="chat.avatar || '/assets/default-group.png'" :alt="chat.name">
+                        <div class="online-indicator" v-if="chat.isOnline && !chat.isGroup"></div>
+                    </div>
+                    <div class="chat-info">
+                        <div class="chat-header">
+                            <span class="chat-name">[[ chat.name || 'Unknown' ]]</span>
+                            <span class="chat-time">[[ formatChatTime(chat.lastMessageTime) ]]</span>
+                        </div>
+                        <div class="chat-preview">
+                            <span class="last-message">[[ truncateMessage(chat.lastMessage) ]]</span>
+                            <div class="unread-count" v-if="chat.unreadCount > 0">[[ chat.unreadCount ]]</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Chat Area -->
+        <div class="main-chat">
+            <div v-if="!selectedChat" class="empty-chat">
+                <div class="empty-state">
+                    <i class="fab fa-whatsapp"></i>
+                    <h3>WhatsApp Web</h3>
+                    <p>Kirim dan terima pesan tanpa perlu menyimpan nomor telepon di ponsel Anda.</p>
+                    <div class="features">
+                        <div class="feature">
+                            <i class="fas fa-lock"></i>
+                            <span>Pribadi & Enkripsi End-to-End</span>
+                        </div>
+                        <div class="feature">
+                            <i class="fas fa-desktop"></i>
+                            <span>Tersedia di berbagai perangkat</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div v-else class="chat-window">
+                <!-- Chat Header -->
+                <div class="chat-header">
+                    <div class="chat-header-info">
+                        <button class="back-btn" @click="selectedChat = null">
+                            <i class="fas fa-arrow-left"></i>
+                        </button>
+                        <div class="chat-header-avatar">
+                            <img :src="selectedChat.avatar || '/assets/default-group.png'" :alt="selectedChat.name">
+                            <div class="online-indicator" v-if="selectedChat.isOnline && !selectedChat.isGroup"></div>
+                        </div>
+                        <div class="chat-header-details">
+                            <div class="chat-name">[[ selectedChat.name ]]</div>
+                            <div class="chat-status">[[ selectedChat.status || 'Click here for contact info' ]]</div>
+                        </div>
+                    </div>
+                    <div class="chat-header-actions">
+                        <button class="icon-btn" @click="searchInChat" title="Search">
+                            <i class="fas fa-search"></i>
+                        </button>
+                        <button class="icon-btn" @click="showChatInfo = true" title="Chat Info">
+                            <i class="fas fa-info-circle"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Messages Area -->
+                <div class="messages-container" ref="messagesContainer">
+                    <div v-for="message in messages"
+                         :key="message.id"
+                         class="message"
+                         :class="getMessageClass(message)">
+                        <div class="message-content">
+                            <div class="message-text" v-html="formatMessageContent(message.content)"></div>
+                            <div class="message-media" v-if="message.mediaType">
+                                <div v-if="message.mediaType === 'image'" class="message-image">
+                                    <img :src="message.mediaUrl" :alt="message.caption" @click="viewMedia(message)">
+                                </div>
+                                <div v-else-if="message.mediaType === 'video'" class="message-video">
+                                    <video controls :poster="message.thumbnail">
+                                        <source :src="message.mediaUrl" type="video/mp4">
+                                    </video>
+                                </div>
+                                <div v-else-if="message.mediaType === 'audio'" class="message-audio">
+                                    <audio controls>
+                                        <source :src="message.mediaUrl" type="audio/mpeg">
+                                    </audio>
+                                </div>
+                                <div v-else-if="message.mediaType === 'document'" class="message-document">
+                                    <a :href="message.mediaUrl" download class="document-link">
+                                        <i class="fas fa-file-alt"></i>
+                                        <span>[[ message.fileName || 'Document' ]]</span>
+                                    </a>
+                                </div>
+                            </div>
+                            <div class="message-caption" v-if="message.caption">[[ message.caption ]]</div>
+                        </div>
+                        <div class="message-meta">
+                            <span class="message-time">[[ formatMessageTime(message.timestamp) ]]</span>
+                            <span class="message-status" v-if="message.isFromMe">
+                                <i class="fas" :class="getMessageStatusIcon(message.status)"></i>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Message Input -->
+                <div class="message-input-container">
+                    <button class="icon-btn" @click="showEmojiPicker = !showEmojiPicker" title="Emoji">
+                        <i class="far fa-smile"></i>
+                    </button>
+                    <button class="icon-btn" @click="attachFile" title="Attach File">
+                        <i class="fas fa-paperclip"></i>
+                    </button>
+                    <div class="message-input">
+                        <textarea
+                            v-model="messageInput"
+                            placeholder="Ketik pesan..."
+                            @keydown.enter.exact.prevent="sendMessage"
+                            @keydown.enter.shift.exact="addNewLine"
+                            rows="1"></textarea>
+                    </div>
+                    <button class="send-btn"
+                            :class="{ 'active': messageInput.trim() }"
+                            @click="sendMessage"
+                            :disabled="!messageInput.trim()">
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Sidebar - Chat Info -->
+        <div class="sidebar-right" v-if="selectedChat && showChatInfo">
+            <div class="chat-info-header">
+                <button class="close-btn" @click="showChatInfo = false">
+                    <i class="fas fa-times"></i>
+                </button>
+                <h3>Info [[ selectedChat.isGroup ? 'Grup' : 'Kontak' ]]</h3>
+            </div>
+
+            <div class="chat-info-content">
+                <div class="info-avatar">
+                    <img :src="selectedChat.avatar || '/assets/default-group.png'" :alt="selectedChat.name">
+                </div>
+                <div class="info-name">[[ selectedChat.name ]]</div>
+                <div class="info-status">[[ selectedChat.status || 'No status available' ]]</div>
+
+                <div v-if="selectedChat.isGroup" class="group-info">
+                    <div class="info-section">
+                        <h4>Anggota Grup ([[ selectedChat.participants?.length || 0 ]])</h4>
+                        <div class="participants-list">
+                            <div v-for="participant in selectedChat.participants"
+                                 :key="participant.jid"
+                                 class="participant">
+                                <img :src="participant.avatar || '/assets/default-avatar.png'" :alt="participant.name">
+                                <span>[[ participant.name ]]</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="info-section">
+                    <h4>Media, Links, and Docs</h4>
+                    <div class="media-grid">
+                        <div v-for="media in chatMedia" :key="media.id" class="media-item">
+                            <img v-if="media.type === 'image'" :src="media.url" :alt="media.caption" @click="viewMedia(media)">
+                            <div v-else class="media-placeholder">
+                                <i class="fas" :class="getMediaIcon(media.type)"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Login Screen -->
+    <div class="login-screen" v-show="showLoginScreen">
+        <div class="login-container">
+            <div class="login-header">
+                <i class="fab fa-whatsapp"></i>
+                <h2>WhatsApp Web</h2>
+                <p>Buka WhatsApp di ponsel Anda untuk menghubungkan ke akun ini.</p>
+            </div>
+
+            <div class="qr-section" v-if="!showCodeLogin">
+                <div class="qr-container">
+                    <div v-if="qrCode && !isQrExpired" class="qr-wrapper">
+                        <img :src="qrCode" alt="QR Code" class="qr-code">
+                        <div class="qr-timer">
+                            <i class="fas fa-clock"></i>
+                            <span>[[ qrTimeFormatted ]]</span>
+                        </div>
+                    </div>
+                    <div v-else-if="isQrExpired" class="qr-expired">
+                        <div class="expired-overlay">
+                            <i class="fas fa-hourglass-end"></i>
+                            <p>QR Code expired</p>
+                            <p>Generating new code...</p>
+                        </div>
+                    </div>
+                    <div v-else class="qr-loading">
+                        <div class="spinner"></div>
+                        <p>Klik tombol di bawah untuk generate QR Code</p>
+                    </div>
+                </div>
+
+                <button v-if="!qrCode" @click="login" class="login-btn" style="margin: 20px 0;">
+                    <i class="fas fa-qrcode"></i>
+                    Generate QR Code
+                </button>
+                <div class="qr-instructions">
+                    <ol>
+                        <li>Buka WhatsApp di ponsel Anda</li>
+                        <li>Menu > Linked devices</li>
+                        <li>Pindai kode QR dengan ponsel Anda</li>
+                    </ol>
+                </div>
+            </div>
+
+            <div class="code-login-section" v-else>
+                <div class="code-form">
+                    <input type="text"
+                           v-model="phoneNumber"
+                           placeholder="Nomor telepon (contoh: +62812345678)"
+                           class="phone-input">
+                    <button @click="loginWithCode"
+                            :disabled="!phoneNumber || loadingCode"
+                            class="login-btn">
+                        <i class="fas fa-mobile-alt"></i>
+                        Dapatkan Kode Pairing
+                    </button>
+                    <div v-if="pairingCode" class="pairing-code">
+                        <label>Kode Pairing:</label>
+                        <div class="code-display">[[ pairingCode ]]</div>
+                        <small>Kode ini berlaku selama 10 menit</small>
+                    </div>
+                </div>
+            </div>
+
+            <div class="login-options">
+                <button @click="toggleLoginMethod" class="toggle-login-btn">
+                    <i class="fas fa-exchange-alt"></i>
+                    [[ showCodeLogin ? 'Gunakan QR Code' : 'Gunakan Kode Pairing' ]]
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" v-show="isLoading">
+        <div class="loading-spinner">
+            <div class="spinner"></div>
+            <p>[[ loadingMessage ]]</p>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Global configuration
+    window.TYPEGROUP = "@g.us";
+    window.TYPEUSER = "@s.whatsapp.net";
+    window.TYPENEWSLETTER = "@newsletter";
+    window.TYPESTATUS = "status@broadcast";
+
+    // Utility functions
+    window.showErrorInfo = (message) => {
+        console.error('Error:', message);
+        // Show toast notification
+        const toast = document.createElement('div');
+        toast.className = 'toast error';
+        toast.innerHTML = `<i class="fas fa-exclamation-circle"></i> ${message}`;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 3000);
+    };
+
+    window.showSuccessInfo = (message) => {
+        console.log('Success:', message);
+        // Show toast notification
+        const toast = document.createElement('div');
+        toast.className = 'toast success';
+        toast.innerHTML = `<i class="fas fa-check-circle"></i> ${message}`;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 3000);
+    };
+
+    // HTTP configuration
+    window.http = axios.create({
+        baseURL: `${window.location.protocol}//${window.location.hostname}${window.location.port ? ':' + window.location.port : ''}{{ .AppBasePath }}`
+    });
+    {{ if isEnableBasicAuth .BasicAuthToken }}
+    window.http.defaults.headers.common['Authorization'] = "{{ .BasicAuthToken }}";
+    {{ end }}
+</script>
+
+<script type="module">
+    const { createApp } = Vue;
+
+    createApp({
+        delimiters: ['[[', ']]'],
+        data() {
+            return {
+                // Connection status
+                isConnected: false,
+                isOnline: false,
+                connectionStatus: 'Connecting...',
+
+                // User profile
+                userProfile: {
+                    name: '',
+                    avatar: '',
+                    status: ''
+                },
+
+                // Chat data
+                chats: [],
+                messages: [],
+                selectedChat: null,
+                searchQuery: '',
+
+                // UI state
+                showLoginScreen: true,
+                showChatInfo: false,
+                showProfileModal: false,
+                showSettingsModal: false,
+                showEmojiPicker: false,
+                newChatModal: false,
+                isLoading: false,
+                loadingMessage: '',
+
+                // Login state
+                qrCode: '',
+                qrCodeExpiry: 0,
+                qrTimer: null,
+                qrTimeLeftDisplay: 0, // Separate reactive variable for display
+                showCodeLogin: false,
+                phoneNumber: '',
+                pairingCode: '',
+                loadingCode: false,
+
+                // Message input
+                messageInput: '',
+
+                // WebSocket
+                websocket: null,
+
+                // Chat media
+                chatMedia: [],
+
+                // Pagination
+                currentPage: 1,
+                hasMoreMessages: true
+            };
+        },
+
+        computed: {
+            filteredChats() {
+                if (!this.searchQuery) return this.chats;
+                const query = this.searchQuery.toLowerCase();
+                return this.chats.filter(chat =>
+                    chat.name?.toLowerCase().includes(query) ||
+                    chat.lastMessage?.toLowerCase().includes(query)
+                );
+            },
+            qrTimeLeft() {
+                if (this.qrCodeExpiry <= 0) return 0;
+                const now = Math.floor(Date.now() / 1000);
+                const timeLeft = this.qrCodeExpiry - now;
+                const result = Math.max(0, timeLeft);
+                console.log('QR Time Left calculation:', {
+                    now,
+                    expiry: this.qrCodeExpiry,
+                    timeLeft,
+                    result
+                });
+                return result;
+            },
+            qrTimeFormatted() {
+                const minutes = Math.floor(this.qrTimeLeftDisplay / 60);
+                const seconds = this.qrTimeLeftDisplay % 60;
+                return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+            },
+            isQrExpired() {
+                return this.qrTimeLeftDisplay <= 0;
+            }
+        },
+
+        methods: {
+            // Initialize app
+            async initApp() {
+                try {
+                    this.isLoading = true;
+                    this.loadingMessage = 'Initializing WhatsApp Web...';
+
+                    // Initialize WebSocket first
+                    this.initWebSocket();
+
+                    // Wait a moment for WebSocket to connect
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+
+                    // Check if we have existing connection
+                    if (this.isConnected) {
+                        this.showLoginScreen = false;
+                        await this.loadUserData();
+                        await this.loadChats();
+                    } else {
+                        this.showLoginScreen = true;
+                        // Don't auto-login, let user click button
+                        this.isLoading = false;
+                        this.loadingMessage = '';
+                        return;
+                    }
+                } catch (error) {
+                    console.error('Initialization error:', error);
+                    this.showLoginScreen = true;
+                    showErrorInfo('Failed to initialize app');
+                } finally {
+                    this.isLoading = false;
+                }
+            },
+
+            // Connection methods
+            async checkConnectionStatus() {
+                try {
+                    const response = await window.http.get('/app/status');
+                    const { is_connected, is_logged_in, device_id } = response.data.results;
+
+                    this.isConnected = is_connected;
+                    this.isOnline = is_logged_in;
+
+                    if (is_connected && is_logged_in) {
+                        this.connectionStatus = `Connected - ${device_id}`;
+                    } else {
+                        this.connectionStatus = 'Disconnected';
+                    }
+                } catch (error) {
+                    console.error('Status check failed:', error);
+                    this.isConnected = false;
+                    this.isOnline = false;
+                    this.connectionStatus = 'Connection failed';
+                }
+            },
+
+            // WebSocket methods
+            initWebSocket() {
+                const protocol = location.protocol === 'https:' ? 'wss://' : 'ws://';
+                const wsUrl = `${protocol}${location.host}{{ .AppBasePath }}/ws`;
+
+                this.websocket = new WebSocket(wsUrl);
+
+                this.websocket.onopen = () => {
+                    console.log('WebSocket connected');
+                    this.websocket.send(JSON.stringify({
+                        code: "FETCH_DEVICES",
+                        message: "List device"
+                    }));
+                };
+
+                this.websocket.onmessage = (event) => {
+                    const message = JSON.parse(event.data);
+                    this.handleWebSocketMessage(message);
+                };
+
+                this.websocket.onerror = (error) => {
+                    console.error('WebSocket error:', error);
+                    showErrorInfo('Connection error occurred');
+                };
+
+                this.websocket.onclose = () => {
+                    console.log('WebSocket closed');
+                    // Try to reconnect after 5 seconds
+                    setTimeout(() => this.initWebSocket(), 5000);
+                };
+            },
+
+            handleWebSocketMessage(message) {
+                console.log('WebSocket message received:', message);
+
+                switch (message.code) {
+                    case 'LIST_DEVICES':
+                        console.log('Devices list received:', message.result);
+                        if (message.result && message.result.length > 0) {
+                            this.isConnected = true;
+                            this.isOnline = true;
+                            this.showLoginScreen = false;
+                            this.loadUserData();
+                            this.loadChats();
+                        } else {
+                            this.isConnected = false;
+                            this.isOnline = false;
+                            this.showLoginScreen = true;
+                        }
+                        break;
+                    case 'LOGIN_SUCCESS':
+                        console.log('Login successful');
+                        showSuccessInfo('Login successful');
+                        this.isConnected = true;
+                        this.isOnline = true;
+                        this.showLoginScreen = false;
+                        this.loadUserData();
+                        this.loadChats();
+                        break;
+                    case 'NEW_MESSAGE':
+                        this.handleNewMessage(message.result);
+                        break;
+                    case 'MESSAGE_STATUS':
+                        this.updateMessageStatus(message.result);
+                        break;
+                    case 'LOGOUT_COMPLETE':
+                        console.log('Logout completed');
+                        this.handleLogout();
+                        break;
+                    default:
+                        console.log('Unhandled WebSocket message:', message);
+                }
+            },
+
+            // Login methods
+            async login() {
+                try {
+                    this.isLoading = true;
+                    this.loadingMessage = 'Generating QR code...';
+
+                    // Clear existing timer
+                    if (this.qrTimer) {
+                        clearInterval(this.qrTimer);
+                        this.qrTimer = null;
+                    }
+
+                    const response = await window.http.get('/app/login');
+                    const { qr_link, qr_duration } = response.data.results;
+
+                    this.qrCode = qr_link;
+
+                    // Set expiry time (current time + duration in seconds)
+                    const now = Math.floor(Date.now() / 1000);
+                    this.qrCodeExpiry = now + (qr_duration || 60); // Default 60 seconds if not provided
+
+                    console.log('QR Code URL:', qr_link);
+                    console.log('QR Duration:', qr_duration, 'seconds');
+                    console.log('QR Expires at:', this.qrCodeExpiry);
+
+                    // Start countdown timer
+                    this.startQrTimer();
+
+                    // Check for login success periodically
+                    this.checkLoginStatus();
+                } catch (error) {
+                    console.error('Login failed:', error);
+                    showErrorInfo('Failed to generate QR code: ' + (error.response?.data?.message || error.message));
+                } finally {
+                    this.isLoading = false;
+                }
+            },
+
+            startQrTimer() {
+                // Update timer every second
+                this.qrTimer = setInterval(() => {
+                    const now = Math.floor(Date.now() / 1000);
+                    const timeLeft = Math.max(0, this.qrCodeExpiry - now);
+
+                    // Update reactive display variable
+                    this.qrTimeLeftDisplay = timeLeft;
+
+                    console.log('Timer tick:', {
+                        now,
+                        expiry: this.qrCodeExpiry,
+                        timeLeft,
+                        display: this.qrTimeLeftDisplay,
+                        isExpired: this.isQrExpired
+                    });
+
+                    if (timeLeft <= 0) {
+                        // QR expired, auto-refresh
+                        console.log('QR Code expired, generating new one...');
+                        this.autoRefreshQr();
+                    }
+                }, 1000);
+            },
+
+            async autoRefreshQr() {
+                // Clear existing timer
+                if (this.qrTimer) {
+                    clearInterval(this.qrTimer);
+                    this.qrTimer = null;
+                }
+
+                // Clear existing QR
+                this.qrCode = '';
+                this.qrCodeExpiry = 0;
+                this.qrTimeLeftDisplay = 0;
+
+                // Generate new QR automatically
+                console.log('Auto-refreshing QR Code...');
+                await this.login();
+            },
+
+            async loginWithCode() {
+                if (!this.phoneNumber) return;
+
+                try {
+                    this.loadingCode = true;
+                    const response = await window.http.get('/app/login-with-code', {
+                        params: { phone: this.phoneNumber }
+                    });
+
+                    this.pairingCode = response.data.results.pair_code;
+                    showSuccessInfo('Pairing code generated successfully');
+
+                    // Check for login success
+                    this.checkLoginStatus();
+                } catch (error) {
+                    console.error('Code login failed:', error);
+                    showErrorInfo('Failed to generate pairing code');
+                } finally {
+                    this.loadingCode = false;
+                }
+            },
+
+            toggleLoginMethod() {
+                this.showCodeLogin = !this.showCodeLogin;
+                if (this.showCodeLogin) {
+                    this.qrCode = '';
+                } else {
+                    this.pairingCode = '';
+                    this.phoneNumber = '';
+                }
+            },
+
+            async checkLoginStatus() {
+                const checkInterval = setInterval(async () => {
+                    try {
+                        const response = await window.http.get('/app/devices');
+                        if (response.data.results && response.data.results.length > 0) {
+                            clearInterval(checkInterval);
+                            this.websocket.send(JSON.stringify({
+                                code: "FETCH_DEVICES",
+                                message: "List device"
+                            }));
+                        }
+                    } catch (error) {
+                        console.error('Status check failed:', error);
+                    }
+                }, 3000);
+            },
+
+            // Data loading methods
+            async loadUserData() {
+                try {
+                    // Load user profile - don't need phone parameter for current user
+                    const response = await window.http.get('/user/info');
+                    if (response.data.results) {
+                        this.userProfile = {
+                            name: response.data.results.pushname || response.data.results.name || 'User',
+                            avatar: response.data.results.avatar_url || '',
+                            status: response.data.results.status || 'Available'
+                        };
+                        console.log('User profile loaded:', this.userProfile);
+                    }
+                } catch (error) {
+                    console.error('Failed to load user data:', error);
+                    // Set default values if failed - this is normal if not logged in
+                    this.userProfile = {
+                        name: 'User',
+                        avatar: '',
+                        status: 'Available'
+                    };
+                }
+            },
+
+            async loadChats() {
+                try {
+                    const response = await window.http.get('/chats?limit=50');
+                    console.log('Chat response:', response.data);
+
+                    if (response.data.results?.data) {
+                        this.chats = response.data.results.data.map(chat => ({
+                            jid: chat.jid,
+                            name: chat.name || this.formatJid(chat.jid),
+                            avatar: '', // TODO: Get avatar from API
+                            lastMessage: chat.last_message || chat.last_message_text || '',
+                            lastMessageTime: chat.last_message_time,
+                            unreadCount: chat.unread_count || 0,
+                            isGroup: chat.jid.includes('@g.us'),
+                            isOnline: false, // TODO: Get online status
+                            status: chat.is_group ? 'Group' : 'Contact',
+                            participants: chat.participants || []
+                        }));
+                        console.log('Chats loaded:', this.chats.length);
+                    } else {
+                        console.log('No chats data found');
+                    }
+                } catch (error) {
+                    console.error('Failed to load chats:', error);
+                    showErrorInfo('Failed to load chats: ' + (error.response?.data?.message || error.message));
+                }
+            },
+
+            async loadMessages(jid, reset = false) {
+                if (!jid) return;
+
+                try {
+                    if (reset) {
+                        this.messages = [];
+                        this.currentPage = 1;
+                        this.hasMoreMessages = true;
+                    }
+
+                    const params = {
+                        limit: 50,
+                        offset: (this.currentPage - 1) * 50
+                    };
+
+                    const response = await window.http.get(`/chat/${jid}/messages`, { params });
+                    if (response.data.results?.data) {
+                        const newMessages = response.data.results.data.map(msg => ({
+                            id: msg.id,
+                            content: msg.content || msg.text || '',
+                            timestamp: msg.timestamp,
+                            isFromMe: msg.is_from_me,
+                            status: msg.status || 'sent',
+                            mediaType: msg.media_type,
+                            mediaUrl: msg.url,
+                            caption: msg.caption,
+                            fileName: msg.filename,
+                            senderJid: msg.sender_jid,
+                            senderName: msg.push_name || 'Unknown'
+                        }));
+
+                        if (reset) {
+                            this.messages = newMessages.reverse();
+                        } else {
+                            this.messages = [...newMessages.reverse(), ...this.messages];
+                        }
+
+                        this.hasMoreMessages = newMessages.length >= 50;
+
+                        // Scroll to bottom if loading new messages
+                        if (reset) {
+                            this.$nextTick(() => this.scrollToBottom());
+                        }
+                    }
+                } catch (error) {
+                    console.error('Failed to load messages:', error);
+                    showErrorInfo('Failed to load messages');
+                }
+            },
+
+            async loadChatMedia(jid) {
+                try {
+                    // This would need to be implemented in the backend
+                    // For now, we'll extract media from loaded messages
+                    this.chatMedia = this.messages
+                        .filter(msg => msg.mediaType)
+                        .map(msg => ({
+                            id: msg.id,
+                            type: msg.mediaType,
+                            url: msg.mediaUrl,
+                            caption: msg.caption
+                        }))
+                        .slice(0, 20); // Limit to 20 most recent media items
+                } catch (error) {
+                    console.error('Failed to load chat media:', error);
+                }
+            },
+
+            // Chat selection
+            selectChat(chat) {
+                this.selectedChat = chat;
+                this.showChatInfo = false;
+                this.loadMessages(chat.jid, true);
+                this.loadChatMedia(chat.jid);
+            },
+
+            // Message handling
+            async sendMessage() {
+                if (!this.messageInput.trim() || !this.selectedChat) return;
+
+                try {
+                    const messageData = {
+                        phone: this.selectedChat.jid,
+                        message: this.messageInput.trim()
+                    };
+
+                    await window.http.post('/send/message', messageData);
+
+                    // Add message to local messages immediately
+                    const newMessage = {
+                        id: Date.now().toString(),
+                        content: this.messageInput.trim(),
+                        timestamp: new Date().toISOString(),
+                        isFromMe: true,
+                        status: 'sent',
+                        senderName: this.userProfile.name
+                    };
+
+                    this.messages.push(newMessage);
+                    this.messageInput = '';
+
+                    // Update last message in chat list
+                    const chatIndex = this.chats.findIndex(c => c.jid === this.selectedChat.jid);
+                    if (chatIndex !== -1) {
+                        this.chats[chatIndex].lastMessage = newMessage.content;
+                        this.chats[chatIndex].lastMessageTime = newMessage.timestamp;
+                    }
+
+                    this.$nextTick(() => this.scrollToBottom());
+                } catch (error) {
+                    console.error('Failed to send message:', error);
+                    showErrorInfo('Failed to send message');
+                }
+            },
+
+            handleNewMessage(messageData) {
+                // Find the corresponding chat
+                const chatIndex = this.chats.findIndex(c => c.jid === messageData.chat_jid);
+                if (chatIndex !== -1) {
+                    // Update chat info
+                    this.chats[chatIndex].lastMessage = messageData.content;
+                    this.chats[chatIndex].lastMessageTime = messageData.timestamp;
+                    this.chats[chatIndex].unreadCount++;
+
+                    // If this is the current chat, add message and mark as read
+                    if (this.selectedChat && this.selectedChat.jid === messageData.chat_jid) {
+                        const newMessage = {
+                            id: messageData.id,
+                            content: messageData.content,
+                            timestamp: messageData.timestamp,
+                            isFromMe: false,
+                            senderName: messageData.sender_name,
+                            mediaType: messageData.media_type,
+                            mediaUrl: messageData.media_url,
+                            caption: messageData.caption
+                        };
+
+                        this.messages.push(newMessage);
+                        this.$nextTick(() => this.scrollToBottom());
+
+                        // Mark as read
+                        this.markMessagesAsRead(messageData.chat_jid);
+                    }
+                }
+            },
+
+            updateMessageStatus(messageData) {
+                const messageIndex = this.messages.findIndex(m => m.id === messageData.message_id);
+                if (messageIndex !== -1) {
+                    this.messages[messageIndex].status = messageData.status;
+                }
+            },
+
+            async markMessagesAsRead(jid) {
+                try {
+                    // This would need to be implemented in the backend
+                    console.log('Marking messages as read for:', jid);
+                } catch (error) {
+                    console.error('Failed to mark messages as read:', error);
+                }
+            },
+
+            // Utility methods
+            formatJid(jid) {
+                if (!jid) return '';
+                if (jid.includes('@g.us')) return 'Group Chat';
+                if (jid.includes('@s.whatsapp.net')) return jid.split('@')[0];
+                return jid;
+            },
+
+            formatChatTime(timestamp) {
+                if (!timestamp) return '';
+                const date = new Date(timestamp);
+                const now = new Date();
+                const diffMs = now - date;
+                const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+                if (diffDays === 0) {
+                    return moment(date).format('HH:mm');
+                } else if (diffDays === 1) {
+                    return 'Yesterday';
+                } else if (diffDays < 7) {
+                    return moment(date).format('ddd');
+                } else {
+                    return moment(date).format('DD/MM/YYYY');
+                }
+            },
+
+            formatMessageTime(timestamp) {
+                if (!timestamp) return '';
+                return moment(timestamp).format('HH:mm');
+            },
+
+            truncateMessage(message) {
+                if (!message) return '';
+                return message.length > 50 ? message.substring(0, 50) + '...' : message;
+            },
+
+            formatMessageContent(content) {
+                if (!content) return '';
+                // Basic markdown support
+                const html = marked.parse(content);
+                // Sanitize HTML
+                return DOMPurify.sanitize(html);
+            },
+
+            getMessageClass(message) {
+                return {
+                    'sent': message.isFromMe,
+                    'received': !message.isFromMe,
+                    'with-media': message.mediaType
+                };
+            },
+
+            getMessageStatusIcon(status) {
+                switch (status) {
+                    case 'sent': return 'fa-check';
+                    case 'delivered': return 'fa-check-double';
+                    case 'read': return 'fa-check-double read';
+                    default: return 'fa-clock';
+                }
+            },
+
+            getMediaIcon(type) {
+                switch (type) {
+                    case 'image': return 'fa-image';
+                    case 'video': return 'fa-video';
+                    case 'audio': return 'fa-music';
+                    case 'document': return 'fa-file-alt';
+                    default: return 'fa-file';
+                }
+            },
+
+            scrollToBottom() {
+                const container = this.$refs.messagesContainer;
+                if (container) {
+                    container.scrollTop = container.scrollHeight;
+                }
+            },
+
+            searchChats() {
+                // This is handled by the computed property
+            },
+
+            searchInChat() {
+                // TODO: Implement search in chat functionality
+                showSuccessInfo('Search in chat feature coming soon!');
+            },
+
+            attachFile() {
+                // TODO: Implement file attachment
+                showSuccessInfo('File attachment feature coming soon!');
+            },
+
+            viewMedia(media) {
+                // TODO: Implement media viewer
+                window.open(media.url, '_blank');
+            },
+
+            addNewLine() {
+                this.messageInput += '\n';
+            },
+
+            handleLogout() {
+                // Clear QR timer
+                if (this.qrTimer) {
+                    clearInterval(this.qrTimer);
+                    this.qrTimer = null;
+                }
+
+                this.isConnected = false;
+                this.isOnline = false;
+                this.showLoginScreen = true;
+                this.selectedChat = null;
+                this.chats = [];
+                this.messages = [];
+                this.qrCode = '';
+                this.qrCodeExpiry = 0;
+                this.qrTimeLeftDisplay = 0;
+                showSuccessInfo('Logged out successfully');
+            },
+        },
+
+        mounted() {
+            this.initApp();
+
+            // Auto-refresh connection status
+            setInterval(() => {
+                if (this.isConnected) {
+                    this.checkConnectionStatus();
+                }
+            }, 30000); // Check every 30 seconds
+        },
+
+        beforeUnmount() {
+            // Clear QR timer
+            if (this.qrTimer) {
+                clearInterval(this.qrTimer);
+                this.qrTimer = null;
+            }
+
+            if (this.websocket) {
+                this.websocket.close();
+            }
+        }
+    }).mount('#app');
+</script>
+</body>
+</html>

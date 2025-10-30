@@ -107,6 +107,18 @@ func restServer(_ *cobra.Command, _ []string) {
 		})
 	})
 
+	// WhatsApp Web Clone Route
+	apiGroup.Get("/web", func(c *fiber.Ctx) error {
+		return c.Render("views/whatsapp-web", fiber.Map{
+			"AppHost":        fmt.Sprintf("%s://%s", c.Protocol(), c.Hostname()),
+			"AppVersion":     config.AppVersion,
+			"AppBasePath":    config.AppBasePath,
+			"BasicAuthToken": c.UserContext().Value(middleware.AuthorizationValue("BASIC_AUTH")),
+			"MaxFileSize":    humanize.Bytes(uint64(config.WhatsappSettingMaxFileSize)),
+			"MaxVideoSize":   humanize.Bytes(uint64(config.WhatsappSettingMaxVideoSize)),
+		})
+	})
+
 	websocket.RegisterRoutes(apiGroup, appUsecase)
 	go websocket.RunHub()
 

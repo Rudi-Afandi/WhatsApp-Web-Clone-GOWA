@@ -526,6 +526,29 @@ func handleMessage(ctx context.Context, evt *events.Message, chatStorageRepo dom
 		log.Errorf("Failed to store incoming message %s: %v", evt.Info.ID, err)
 	}
 
+	// Broadcast message to WebSocket clients for real-time UI updates
+	go func(evt *events.Message) {
+		// Create WebSocket message data
+		wsMessage := map[string]any{
+			"chat_jid":      evt.Info.Chat.String(),
+			"message_id":    evt.Info.ID,
+			"content":       extractMessageText(evt),
+			"timestamp":     evt.Info.Timestamp.Format(time.RFC3339),
+			"sender_name":   evt.Info.PushName,
+			"sender_jid":    evt.Info.Sender.String(),
+			"is_from_me":    evt.Info.Sender.String() == cli.Store.ID.String(),
+			"media_type":    extractMediaType(evt),
+			"media_url":     extractMediaURL(ctx, evt),
+			"caption":       extractCaption(evt),
+		}
+
+		websocket.Broadcast <- websocket.BroadcastMessage{
+			Code:    "NEW_MESSAGE",
+			Message: "New message received",
+			Result:  wsMessage,
+		}
+	}(evt)
+
 	// Handle image message if present
 	handleImageMessage(ctx, evt)
 
@@ -1021,4 +1044,49 @@ func handleGroupInfo(ctx context.Context, evt *events.GroupInfo) {
 			}
 		}(evt)
 	}
+}
+
+// Helper functions for extracting message information for WebSocket
+func extractMessageText(evt *events.Message) string {
+	message := utils.BuildEventMessage(evt)
+	if message.Text != "" {
+		return message.Text
+	}
+	return ""
+}
+
+func extractMediaType(evt *events.Message) string {
+	if evt.Message.GetImageMessage() != nil {
+		return "image"
+	} else if evt.Message.GetVideoMessage() != nil {
+		return "video"
+	} else if evt.Message.GetAudioMessage() != nil {
+		return "audio"
+	} else if evt.Message.GetDocumentMessage() != nil {
+		return "document"
+	} else if evt.Message.GetStickerMessage() != nil {
+		return "sticker"
+	} else if evt.Message.GetLocationMessage() != nil {
+		return "location"
+	} else if evt.Message.GetContactMessage() != nil {
+		return "contact"
+	}
+	return "text"
+}
+
+func extractMediaURL(ctx context.Context, evt *events.Message) string {
+	// For now, return empty string. This can be implemented later to extract media URLs
+	return ""
+}
+
+func extractCaption(evt *events.Message) string {
+	// Extract caption from various message types
+	if imageMsg := evt.Message.GetImageMessage(); imageMsg != nil && imageMsg.Caption != nil {
+		return *imageMsg.Caption
+	} else if videoMsg := evt.Message.GetVideoMessage(); videoMsg != nil && videoMsg.Caption != nil {
+		return *videoMsg.Caption
+	} else if documentMsg := evt.Message.GetDocumentMessage(); documentMsg != nil && documentMsg.Caption != nil {
+		return *documentMsg.Caption
+	}
+	return ""
 }
