@@ -203,6 +203,20 @@ body {
     background: #e5ddd5;
 }
 
+.chat-item.active .chat-name {
+    color: #111b21;
+    font-weight: 600;
+}
+
+.chat-item.active .chat-time {
+    color: #667781;
+}
+
+.chat-item.active .last-message {
+    color: #667781;
+    font-weight: 500;
+}
+
 .chat-avatar {
     position: relative;
     margin-right: 15px;
@@ -225,6 +239,7 @@ body {
     justify-content: space-between;
     align-items: center;
     margin-bottom: 2px;
+    background: transparent;
 }
 
 .chat-name {
@@ -251,7 +266,7 @@ body {
 
 .last-message {
     font-size: 14px;
-    color: #3b4a54;
+    color: #667781;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -344,7 +359,7 @@ body {
 
 /* Chat Header */
 .chat-header {
-    background: #f0f2f5;
+    /* background: #f0f2f5; */
     padding: 16px 20px;
     display: flex;
     align-items: center;
@@ -1090,72 +1105,168 @@ input:focus {
     border-color: #25d366;
 }
 
-/* Dark Mode Support (Optional) */
-@media (prefers-color-scheme: dark) {
-    body {
-        background: #0b141a;
-        color: #e9edef;
-    }
+/* Dark Mode Support */
+body.dark-mode {
+    background: #0b141a;
+    color: #e9edef;
+}
 
-    .whatsapp-container {
-        background: #0b141a;
-    }
+.dark-mode .whatsapp-container {
+    background: #0b141a;
+}
 
-    .sidebar-left,
-    .sidebar-right {
-        background: #0b141a;
-        border-color: #2a3942;
-    }
+.dark-mode .sidebar-left,
+.dark-mode .sidebar-right {
+    background: #0b141a;
+    border-color: #2a3942;
+}
 
-    .main-chat {
-        background: #0b141a;
-        background-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><rect width="100" height="100" fill="%230b141a"/><path d="M0 0L100 100M100 0L0 100" stroke="%232a3942" stroke-width="0.5" opacity="0.3"/></svg>');
-    }
+.dark-mode .main-chat {
+    background: #0b141a;
+    background-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><rect width="100" height="100" fill="%230b141a"/><path d="M0 0L100 100M100 0L0 100" stroke="%232a3942" stroke-width="0.5" opacity="0.3"/></svg>');
+}
 
-    .message-content {
-        background: #202c33;
-        color: #e9edef;
-    }
+.dark-mode .message-content {
+    background: #202c33;
+    color: #e9edef;
+}
 
-    .message.sent .message-content {
-        background: #005c4b;
-    }
+.dark-mode .message.sent .message-content {
+    background: #005c4b;
+}
 
-    .chat-header {
-        background: #202c33;
-        border-color: #2a3942;
-    }
+.dark-mode .chat-window .chat-header {
+    background: #202c33;
+    border-color: #2a3942;
+}
 
-    .message-input-container {
-        background: #202c33;
-        border-color: #2a3942;
-    }
+.dark-mode .chat-info .chat-header {
+    background: transparent;
+}
 
-    .message-input {
-        background: #2a3942;
-        border-color: #2a3942;
-    }
+.dark-mode .message-input-container {
+    background: #202c33;
+    border-color: #2a3942;
+}
 
-    .search-container {
-        background: #202c33;
-        border-color: #2a3942;
-    }
+.dark-mode .message-input {
+    background: #2a3942;
+    border-color: #2a3942;
+    color: #e9edef;
+}
 
-    .search-box {
-        background: #2a3942;
-    }
+.dark-mode .search-container {
+    background: #202c33;
+    border-color: #2a3942;
+}
 
-    .search-box input {
-        color: #e9edef;
-    }
+.dark-mode .search-box {
+    background: #2a3942;
+    border-color: #2a3942;
+    color: #e9edef;
+}
 
-    .chat-item:hover {
-        background: #2a3942;
-    }
+.dark-mode .icon-btn {
+    background: none;
+    border: none;
+    color: #e9edef;
+}
 
-    .chat-item.active {
-        background: #1f2c34;
-    }
+.dark-mode .icon-btn:hover {
+    background: #2a3942;
+}
+
+.dark-mode .chat-item:hover {
+    background: #2a3942;
+}
+
+.dark-mode .chat-item.active {
+    background: #1f2c34;
+}
+
+/* Chat text colors in dark mode */
+.dark-mode .chat-item.active .chat-name {
+    color: #e9edef;
+    font-weight: 600;
+}
+
+.dark-mode .chat-item.active .chat-time {
+    color: #8696a0;
+}
+
+.dark-mode .chat-item.active .last-message {
+    color: #8696a0;
+    font-weight: 500;
+}
+
+/* Regular chat items in dark mode */
+.dark-mode .chat-name {
+    color: #e9edef;
+}
+
+.dark-mode .chat-time {
+    color: #8696a0;
+}
+
+.dark-mode .last-message {
+    color: #8696a0;
+}
+
+/* Additional dark mode fixes */
+.dark-mode .user-name {
+    color: #e9edef;
+}
+
+.dark-mode .user-status {
+    color: #8696a0;
+}
+
+.dark-mode .qr-code,
+.dark-mode .qr-loading,
+.dark-mode .qr-expired {
+    border-color: #2a3942;
+}
+
+.dark-mode .qr-loading {
+    background: #1f2c34;
+}
+
+.dark-mode .qr-expired {
+    background: #1f2c34;
+}
+
+.dark-mode .login-btn {
+    background: #25d366;
+    color: white;
+}
+
+.dark-mode .login-btn:hover:not(:disabled) {
+    background: #128c7e;
+}
+
+.dark-mode .chat-info-header {
+    background: #1f2c34;
+    border-color: #2a3942;
+    color: #e9edef;
+}
+
+.dark-mode .status-bar {
+    background: #1f2c34;
+    color: #e9edef;
+}
+
+.dark-mode .back-btn {
+    color: #e9edef;
+}
+
+.dark-mode .unread-count {
+    background: #25d366;
+    color: white;
+}
+
+.dark-mode .online-indicator {
+    background: #25d366;
+    border: 2px solid #0b141a;
 }
 
 /* Animation and Transitions */
